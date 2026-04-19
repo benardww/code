@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c ' *)",
+      "Bash(python -c \"print\\('python ok'\\)\")",
+      "Bash(echo \"exit: $?\")",
+      "Bash(/usr/bin/python3 --version)",
+      "Read(//usr/**)",
+      "Read(//c/Users/**)",
+      "Read(//c/Users/00577052/AppData/Local/Programs/**)"
+    ]
+  }
+}

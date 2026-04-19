@@ -1,0 +1,65 @@
+import os
+import numpy as np
+import torch
+from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
+
+
+class EEGDataset(Dataset):
+    """PyTorch Dataset wrapping pre-windowed EEG arrays."""
+
+    def __init__(self, X: np.ndarray, y: np.ndarray):
+        self.X = X.astype(np.float32)
+        self.y = y.astype(np.int64)
+
+    def __len__(self) -> int:
+        return len(self.y)
+
+    def __getitem__(self, idx: int):
+        x = self.X[idx].copy()  # (n_channels, n_timesteps)
+        # Per-channel z-score normalisation
+        mean = x.mean(axis=-1, keepdims=True)
+        std = x.std(axis=-1, keepdims=True) + 1e-8
+        x = (x - mean) / std
+        return torch.tensor(x, dtype=torch.float32), torch.tensor(self.y[idx], dtype=torch.long)
+
+
+def get_loaders(
+    subject_dir: str,
+    batch_size: int,
+    num_workers: int = 4,
+):
+    """
+    Build train and val DataLoaders for one subject from pre-saved .npy files.
+
+    Returns:
+        (train_loader, val_loader)
+    """
+    train_X = np.load(os.path.join(subject_dir, 'train_X.npy'))
+    train_y = np.load(os.path.join(subject_dir, 'train_y.npy'))
+    val_X = np.load(os.path.join(subject_dir, 'val_X.npy'))
+    val_y = np.load(os.path.join(subject_dir, 'val_y.npy'))
+
+    train_ds = EEGDataset(train_X, train_y)
+    val_ds = EEGDataset(val_X, val_y)
+
+    # Weighted sampler to handle residual class imbalance in training set
+    counts = np.bincount(train_y, minlength=2)
+    weights = 1.0 / (counts[train_y] + 1e-8)
+    sampler = WeightedRandomSampler(weights, num_samples=len(weights), replacement=True)
+
+    train_loader = DataLoader(
+        train_ds,
+        batch_size=batch_size,
+        sampler=sampler,
+        num_workers=num_workers,
+        pin_memory=True,
+        drop_last=True,
+    )
+    val_loader = DataLoader(
+        val_ds,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=True,
+    )
+    return train_loader, val_loader
