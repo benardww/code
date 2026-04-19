@@ -42,10 +42,10 @@ def _build_gt_sequence(T: int, seizure_intervals, stride: int, win_len: int) -> 
     return np.array(gt, dtype=np.int8)
 
 
-def evaluate_subject(subject_name: str, cfg: Config) -> dict:
+def evaluate_subject(subject_name: str, cfg: Config, experiments_dir: str = 'experiments') -> dict:
     subject_proc_dir = os.path.join(cfg.data_processed_dir, subject_name)
     subject_raw_dir = os.path.join(cfg.data_raw_dir, subject_name)
-    ckpt_path = os.path.join('experiments', subject_name, 'best_model.pth')
+    ckpt_path = os.path.join(experiments_dir, subject_name, 'best_model.pth')
 
     if not os.path.isfile(ckpt_path):
         raise FileNotFoundError(f"Checkpoint not found: {ckpt_path}")

@@ -26,7 +26,7 @@ def set_seed(seed: int):
         torch.cuda.manual_seed_all(seed)
 
 
-def train_subject(subject_name: str, cfg: Config) -> str:
+def train_subject(subject_name: str, cfg: Config, experiments_dir: str = 'experiments') -> str:
     set_seed(cfg.seed)
 
     subject_dir = os.path.join(cfg.data_processed_dir, subject_name)
@@ -44,7 +44,7 @@ def train_subject(subject_name: str, cfg: Config) -> str:
         cfg.focal_alpha = stats.get('focal_alpha', cfg.focal_alpha)
         print(f"Using focal_alpha={cfg.focal_alpha:.4f} from stats.json")
 
-    save_dir = os.path.join('experiments', subject_name)
+    save_dir = os.path.join(experiments_dir, subject_name)
     print(f"\nTraining on subject: {subject_name}  |  device: {cfg.device}")
 
     train_loader, val_loader = get_loaders(subject_dir, cfg.batch_size, cfg.num_workers)
