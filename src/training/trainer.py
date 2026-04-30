@@ -75,16 +75,21 @@ class Trainer:
     def _validate(self, loader) -> dict:
         self.model.eval()
         all_probs, all_labels = [], []
+        total_loss = 0.0
         for X, y in loader:
-            X = X.to(self.device)
+            X, y = X.to(self.device), y.to(self.device)
             logits = self.model(X)
+            total_loss += self.criterion(logits, y).item()
             probs = torch.softmax(logits, dim=-1)[:, 1].cpu().numpy()
             all_probs.extend(probs)
-            all_labels.extend(y.numpy())
-        return compute_metrics(np.array(all_probs), np.array(all_labels))
+            all_labels.extend(y.cpu().numpy())
+        metrics = compute_metrics(np.array(all_probs), np.array(all_labels))
+        metrics['loss'] = total_loss / max(len(loader), 1)
+        return metrics
 
     def fit(self, train_loader, val_loader) -> str:
-        best_auc = -np.inf
+        best_score = -np.inf
+        best_auc = float('nan')
         best_ckpt = os.path.join(self.save_dir, 'best_model.pth')
 
         for epoch in range(1, self.cfg.epochs + 1):
@@ -93,20 +98,25 @@ class Trainer:
             val_metrics = self._validate(val_loader)
             self.scheduler.step()
 
+            auc = val_metrics['auc']
+            monitor = auc if not np.isnan(auc) else -val_metrics['loss']
+            auc_str = f"{auc:.4f}" if not np.isnan(auc) else f"nan(loss={val_metrics['loss']:.4f})"
+
             print(
                 f"Epoch {epoch:3d}/{self.cfg.epochs} | "
                 f"loss={train_loss:.4f} | "
-                f"val_auc={val_metrics['auc']:.4f} | "
+                f"val_auc={auc_str} | "
                 f"sens={val_metrics['sensitivity']:.4f} | "
                 f"spec={val_metrics['specificity']:.4f} | "
                 f"{time.time() - t0:.1f}s"
             )
 
-            if val_metrics['auc'] > best_auc:
-                best_auc = val_metrics['auc']
+            if monitor > best_score:
+                best_score = monitor
+                best_auc = auc
                 torch.save(self.model.state_dict(), best_ckpt)
 
-            if self.early_stopper.step(val_metrics['auc']):
+            if self.early_stopper.step(monitor):
                 print(f"Early stopping at epoch {epoch} (best val_auc={best_auc:.4f})")
                 break
 
