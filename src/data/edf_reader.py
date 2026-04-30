@@ -1,6 +1,7 @@
 import os
 import re
 import numpy as np
+
 import mne
 from typing import Dict, List, Optional, Tuple
 
@@ -26,6 +27,7 @@ def _normalize_ch(name: str) -> str:
         if name.upper().endswith(suffix):
             name = name[:-len(suffix)]
     name = name.rstrip('.')
+    name = re.sub(r'-\d+$', '', name)
     return name.upper()
 
 

@@ -112,4 +112,9 @@ def process_subject(subject_dir: str, out_dir: str, cfg: Config) -> bool:
         json.dump(stats, f, indent=2)
 
     print(f"  [{subject_name}] focal_alpha = {focal_alpha:.4f}  |  test files = {len(test_files)}")
+
+    if not os.path.isfile(os.path.join(out_dir, 'train_X.npy')):
+        print(f"  [{subject_name}] 未生成 train 数据，跳过该受试者。")
+        return False
+
     return True
