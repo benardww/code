@@ -87,11 +87,11 @@ def parse_args():
     # ── 路径 ───────────────────────────────────────────────────────────────
     path_g = parser.add_argument_group('路径配置')
     path_g.add_argument('--data_raw_dir',
-                        default='autodl-tmp/chb-mit-scalp-eeg-database-1.0.0',
+                        default='/root/autodl-tmp/chb-mit-scalp-eeg-database-1.0.0',
                         help='CHB-MIT 原始数据根目录')
-    path_g.add_argument('--data_processed_dir', default='data/processed',
+    path_g.add_argument('--data_processed_dir', default='/root/code/data/processed',
                         help='预处理输出目录')
-    path_g.add_argument('--experiments_dir', default='experiments',
+    path_g.add_argument('--experiments_dir', default='/root/code/experiments',
                         help='模型权重保存目录')
 
     return parser.parse_args()
