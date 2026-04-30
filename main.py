@@ -158,8 +158,8 @@ def main():
         print(f"{'─'*50}")
 
         try:
-            # ── 预处理 ────────────────────────────────────────────────────
-            if mode in ('all', 'preprocess'):
+            # ── 显式预处理并保存到磁盘（仅 --mode preprocess）────────────────
+            if mode == 'preprocess':
                 raw_dir = os.path.join(cfg.data_raw_dir, subject)
                 proc_dir = os.path.join(cfg.data_processed_dir, subject)
                 if not os.path.isdir(raw_dir):
@@ -173,8 +173,13 @@ def main():
                     failed.append(subject)
                     continue
 
-            # ── 训练 ──────────────────────────────────────────────────────
+            # ── 训练（内存中预处理，不写磁盘）──────────────────────────────
             if mode in ('all', 'train'):
+                raw_dir = os.path.join(cfg.data_raw_dir, subject)
+                if not os.path.isdir(raw_dir):
+                    print(f"  [SKIP] 原始数据不存在: {raw_dir}")
+                    failed.append(subject)
+                    continue
                 print(f"  [训练] subject={subject}  epochs={cfg.epochs}  lr={cfg.lr}")
                 train_subject(subject, cfg, experiments_dir=args.experiments_dir)
 

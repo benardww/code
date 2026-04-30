@@ -59,7 +59,7 @@ class Config:
 
     # Paths (relative to project root)
     data_raw_dir: str = '/root/autodl-tmp/chb-mit-scalp-eeg-database-1.0.0'
-    data_processed_dir: str = '/root/code/data/processed'
+    data_processed_dir: str = '/root/autodl-tmp/data/processed'
 
     # Splits (by EDF file count)
     train_ratio: float = 0.70

@@ -23,26 +23,10 @@ class EEGDataset(Dataset):
         return torch.tensor(x, dtype=torch.float32), torch.tensor(self.y[idx], dtype=torch.long)
 
 
-def get_loaders(
-    subject_dir: str,
-    batch_size: int,
-    num_workers: int = 4,
-):
-    """
-    Build train and val DataLoaders for one subject from pre-saved .npy files.
-
-    Returns:
-        (train_loader, val_loader)
-    """
-    train_X = np.load(os.path.join(subject_dir, 'train_X.npy'))
-    train_y = np.load(os.path.join(subject_dir, 'train_y.npy'))
-    val_X = np.load(os.path.join(subject_dir, 'val_X.npy'))
-    val_y = np.load(os.path.join(subject_dir, 'val_y.npy'))
-
+def _make_loaders(train_X, train_y, val_X, val_y, batch_size, num_workers):
     train_ds = EEGDataset(train_X, train_y)
     val_ds = EEGDataset(val_X, val_y)
 
-    # Weighted sampler to handle residual class imbalance in training set
     counts = np.bincount(train_y, minlength=2)
     weights = 1.0 / (counts[train_y] + 1e-8)
     sampler = WeightedRandomSampler(weights, num_samples=len(weights), replacement=True)
@@ -63,3 +47,27 @@ def get_loaders(
         pin_memory=True,
     )
     return train_loader, val_loader
+
+
+def get_loaders_from_arrays(
+    train_X: np.ndarray, train_y: np.ndarray,
+    val_X: np.ndarray, val_y: np.ndarray,
+    batch_size: int,
+    num_workers: int = 4,
+):
+    """从内存数组构建 DataLoader，不依赖磁盘文件。"""
+    return _make_loaders(train_X, train_y, val_X, val_y, batch_size, num_workers)
+
+
+def get_loaders(
+    subject_dir: str,
+    batch_size: int,
+    num_workers: int = 4,
+):
+    """从磁盘 .npy 文件构建 DataLoader（--mode preprocess 缓存后使用）。"""
+    train_X = np.load(os.path.join(subject_dir, 'train_X.npy'))
+    train_y = np.load(os.path.join(subject_dir, 'train_y.npy'))
+    val_X = np.load(os.path.join(subject_dir, 'val_X.npy'))
+    val_y = np.load(os.path.join(subject_dir, 'val_y.npy'))
+    return _make_loaders(train_X, train_y, val_X, val_y, batch_size, num_workers)
+

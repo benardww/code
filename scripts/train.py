@@ -7,12 +7,12 @@ import random
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import json
 import numpy as np
 import torch
 
 from src.utils.config import Config
-from src.data.dataset import get_loaders
+from src.data.build_dataset import process_subject_to_memory
+from src.data.dataset import get_loaders_from_arrays
 from src.models.seizure_detector import SeizureDetector
 from src.losses.focal_loss import FocalLoss
 from src.training.trainer import Trainer
@@ -29,29 +29,25 @@ def set_seed(seed: int):
 def train_subject(subject_name: str, cfg: Config, experiments_dir: str = 'experiments') -> str:
     set_seed(cfg.seed)
 
-    subject_dir = os.path.join(cfg.data_processed_dir, subject_name)
-    if not os.path.isdir(subject_dir):
-        raise FileNotFoundError(
-            f"Processed data not found at {subject_dir}. "
-            "Run scripts/preprocess_all.py first."
-        )
+    raw_subject_dir = os.path.join(cfg.data_raw_dir, subject_name)
+    if not os.path.isdir(raw_subject_dir):
+        raise FileNotFoundError(f"原始数据目录不存在: {raw_subject_dir}")
 
-    # Load per-subject focal_alpha if available
-    stats_path = os.path.join(subject_dir, 'stats.json')
-    if os.path.isfile(stats_path):
-        with open(stats_path) as f:
-            stats = json.load(f)
-        cfg.focal_alpha = stats.get('focal_alpha', cfg.focal_alpha)
-        print(f"Using focal_alpha={cfg.focal_alpha:.4f} from stats.json")
+    result = process_subject_to_memory(raw_subject_dir, cfg)
+    if result is None:
+        raise ValueError(f"[{subject_name}] 无法处理原始数据，跳过训练。")
+
+    train_X, train_y, val_X, val_y, focal_alpha = result
+    cfg.focal_alpha = focal_alpha
 
     save_dir = os.path.join(experiments_dir, subject_name)
     print(f"\nTraining on subject: {subject_name}  |  device: {cfg.device}")
+    print(f"Using focal_alpha={cfg.focal_alpha:.4f}")
 
-    train_loader, val_loader = get_loaders(subject_dir, cfg.batch_size, cfg.num_workers)
-    print(
-        f"Train batches: {len(train_loader)} | "
-        f"Val batches: {len(val_loader)}"
+    train_loader, val_loader = get_loaders_from_arrays(
+        train_X, train_y, val_X, val_y, cfg.batch_size, cfg.num_workers
     )
+    print(f"Train batches: {len(train_loader)} | Val batches: {len(val_loader)}")
 
     model = SeizureDetector(cfg)
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -82,3 +78,4 @@ if __name__ == '__main__':
         cfg.batch_size = args.batch_size
 
     train_subject(args.subject, cfg)
+
