@@ -58,7 +58,7 @@ class Config:
     collar_sec: float = 5.0   # extend each detection region by ±5s
 
     # Paths (relative to project root)
-    data_raw_dir: str = 'physionet.org/files/chbmit/1.0.0'
+    data_raw_dir: str = 'autodl-tmp/chb-mit-scalp-eeg-database-1.0.0'
     data_processed_dir: str = 'data/processed'
 
     # Splits (by EDF file count)
