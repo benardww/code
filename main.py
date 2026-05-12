@@ -25,6 +25,7 @@ CHB-MIT 癫痫发作检测 — 一键启动脚本
 import os
 import sys
 import argparse
+import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -151,6 +152,8 @@ def main():
     print(f"{'='*60}\n")
 
     ok, failed = [], []
+    seg_results = []   # 用于 segment-based 汇总表
+    evt_results = []   # 用于 event-based 汇总表
 
     for subject in subjects:
         print(f"\n{'─'*50}")
@@ -186,7 +189,13 @@ def main():
             # ── 评估 ──────────────────────────────────────────────────────
             if mode in ('all', 'eval'):
                 print(f"  [评估] subject={subject}")
-                evaluate_subject(subject, cfg, experiments_dir=args.experiments_dir)
+                result = evaluate_subject(subject, cfg, experiments_dir=args.experiments_dir)
+                if result:
+                    seg_results.append((subject, result['segment']))
+                    evt_results.append((subject, result['event']))
+                else:
+                    failed.append(subject)
+                    continue
 
             ok.append(subject)
 
@@ -202,6 +211,55 @@ def main():
     if failed:
         print(f"  失败: {failed}")
     print(f"{'='*60}\n")
+
+    # ── Segment-based 汇总表 ─────────────────────────────────────────────
+    if seg_results and mode in ('all', 'eval'):
+        print("=" * 80)
+        print("  Segment-Based 评价指标汇总")
+        print("=" * 80)
+        print(f"{'Subject':<10} {'Sensitivity':>12} {'Specificity':>12} {'Accuracy':>12}")
+        print("-" * 46)
+        for subj, seg in seg_results:
+            print(f"{subj:<10} {seg['sensitivity']:12.4f} {seg['specificity']:12.4f} {seg['accuracy']:12.4f}")
+        print("-" * 46)
+        if seg_results:
+            avg_sens = np.mean([s['sensitivity'] for _, s in seg_results])
+            avg_spec = np.mean([s['specificity'] for _, s in seg_results])
+            avg_acc  = np.mean([s['accuracy'] for _, s in seg_results])
+            print(f"{'Mean':<10} {avg_sens:12.4f} {avg_spec:12.4f} {avg_acc:12.4f}")
+        print("=" * 80 + "\n")
+
+    # ── Event-based 汇总表 ───────────────────────────────────────────────
+    if evt_results and mode in ('all', 'eval'):
+        print("=" * 100)
+        print("  Event-Based 评价指标汇总")
+        print("=" * 100)
+        hdr = (f"{'Subject':<10} {'Dur(h)':>8} {'nTest':>7} {'nSz':>6} "
+               f"{'DetSens':>10} {'FDR(/h)':>8} {'Lat(s)':>8}")
+        print(hdr)
+        print("-" * 60)
+        for subj, evt in evt_results:
+            lat_str = f"{evt['latency_s']:.2f}" if not np.isnan(evt['latency_s']) else "N/A"
+            print(f"{subj:<10} {evt['duration_test_h']:8.2f} {evt['number_of_testing']:7d} "
+                  f"{evt['seizures_number']:6d} {evt['true_detection_sensitivity']:10.4f} "
+                  f"{evt['FDR_per_h']:8.2f} {lat_str:>8}")
+        print("-" * 60)
+        if evt_results:
+            avg_dur    = np.mean([e['duration_test_h'] for _, e in evt_results])
+            avg_ntest  = np.mean([e['number_of_testing'] for _, e in evt_results])
+            avg_nsz    = np.mean([e['seizures_number'] for _, e in evt_results])
+            valid_sens = [e['true_detection_sensitivity'] for _, e in evt_results
+                          if not np.isnan(e['true_detection_sensitivity'])]
+            valid_lat  = [e['latency_s'] for _, e in evt_results
+                          if not np.isnan(e['latency_s'])]
+            avg_detsens = np.mean(valid_sens) if valid_sens else float('nan')
+            avg_fdr     = np.mean([e['FDR_per_h'] for _, e in evt_results])
+            avg_lat     = np.mean(valid_lat) if valid_lat else float('nan')
+            lat_mean_str = f"{avg_lat:.2f}" if not np.isnan(avg_lat) else "N/A"
+            detsens_str  = f"{avg_detsens:.4f}" if not np.isnan(avg_detsens) else "N/A"
+            print(f"{'Mean':<10} {avg_dur:8.2f} {avg_ntest:7.1f} {avg_nsz:6.1f} "
+                  f"{detsens_str:>10} {avg_fdr:8.2f} {lat_mean_str:>8}")
+        print("=" * 100 + "\n")
 
 
 if __name__ == '__main__':

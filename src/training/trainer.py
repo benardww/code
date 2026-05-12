@@ -120,5 +120,6 @@ class Trainer:
                 print(f"Early stopping at epoch {epoch} (best val_auc={best_auc:.4f})")
                 break
 
-        print(f"Training complete. Best val_auc={best_auc:.4f}")
+        print(f"Training complete. Best val_auc={best_auc:.4f}" if not np.isnan(best_auc)
+              else "Training complete. Best val_auc=n/a (val 集无癫痫样本，以 val_loss 替代监控)")
         return best_ckpt
