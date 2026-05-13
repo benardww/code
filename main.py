@@ -24,6 +24,7 @@ CHB-MIT 癫痫发作检测 — 一键启动脚本
 
 import os
 import sys
+import csv
 import argparse
 import numpy as np
 
@@ -260,6 +261,52 @@ def main():
             print(f"{'Mean':<10} {avg_dur:8.2f} {avg_ntest:7.1f} {avg_nsz:6.1f} "
                   f"{detsens_str:>10} {avg_fdr:8.2f} {lat_mean_str:>8}")
         print("=" * 100 + "\n")
+
+        # ── 保存 CSV ───────────────────────────────────────────────────
+        seg_csv = os.path.join(args.experiments_dir, 'segment_metrics.csv')
+        evt_csv = os.path.join(args.experiments_dir, 'event_metrics.csv')
+        os.makedirs(args.experiments_dir, exist_ok=True)
+
+        with open(seg_csv, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['Subject', 'Sensitivity', 'Specificity', 'Accuracy'])
+            for subj, seg in seg_results:
+                writer.writerow([subj, f"{seg['sensitivity']:.4f}",
+                                 f"{seg['specificity']:.4f}", f"{seg['accuracy']:.4f}"])
+            if seg_results:
+                avg_sens = np.mean([s['sensitivity'] for _, s in seg_results])
+                avg_spec = np.mean([s['specificity'] for _, s in seg_results])
+                avg_acc  = np.mean([s['accuracy'] for _, s in seg_results])
+                writer.writerow(['Mean', f"{avg_sens:.4f}", f"{avg_spec:.4f}", f"{avg_acc:.4f}"])
+        print(f"Segment 指标已保存至: {seg_csv}")
+
+        with open(evt_csv, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['Subject', 'Duration_h', 'nTest', 'nSz',
+                             'DetSens', 'FDR_per_h', 'Latency_s'])
+            for subj, evt in evt_results:
+                lat_str = f"{evt['latency_s']:.2f}" if not np.isnan(evt['latency_s']) else "N/A"
+                dets_str = f"{evt['true_detection_sensitivity']:.4f}" if not np.isnan(evt['true_detection_sensitivity']) else "N/A"
+                writer.writerow([subj, f"{evt['duration_test_h']:.2f}",
+                                 evt['number_of_testing'], evt['seizures_number'],
+                                 dets_str, f"{evt['FDR_per_h']:.2f}", lat_str])
+            if evt_results:
+                valid_sens = [e['true_detection_sensitivity'] for _, e in evt_results
+                              if not np.isnan(e['true_detection_sensitivity'])]
+                valid_lat  = [e['latency_s'] for _, e in evt_results
+                              if not np.isnan(e['latency_s'])]
+                avg_detsens = np.mean(valid_sens) if valid_sens else float('nan')
+                avg_lat = np.mean(valid_lat) if valid_lat else float('nan')
+                dets_m_str = f"{avg_detsens:.4f}" if not np.isnan(avg_detsens) else "N/A"
+                lat_m_str = f"{avg_lat:.2f}" if not np.isnan(avg_lat) else "N/A"
+                writer.writerow(['Mean',
+                                 f"{np.mean([e['duration_test_h'] for _, e in evt_results]):.2f}",
+                                 f"{np.mean([e['number_of_testing'] for _, e in evt_results]):.1f}",
+                                 f"{np.mean([e['seizures_number'] for _, e in evt_results]):.1f}",
+                                 dets_m_str,
+                                 f"{np.mean([e['FDR_per_h'] for _, e in evt_results]):.2f}",
+                                 lat_m_str])
+        print(f"Event 指标已保存至: {evt_csv}")
 
 
 if __name__ == '__main__':
