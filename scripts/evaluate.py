@@ -20,6 +20,7 @@ from sklearn.metrics import confusion_matrix
 from src.utils.config import Config
 from src.data.edf_reader import parse_summary, read_edf
 from src.data.preprocessing import filter_all_channels
+from src.data.build_dataset import _seizure_aware_split
 from src.models.seizure_detector import SeizureDetector
 from src.training.postprocessing import infer_uniform_stride, postprocess
 
@@ -117,16 +118,16 @@ def evaluate_subject(subject_name: str, cfg: Config, experiments_dir: str = 'exp
     model.eval()
 
     edf_files = sorted(f for f in os.listdir(subject_raw_dir) if f.endswith('.edf'))
-    n = len(edf_files)
-    n_train = max(1, int(n * cfg.train_ratio))
-    n_val   = max(1, int(n * cfg.val_ratio))
-    test_files = edf_files[n_train + n_val:]
-    if not test_files:
-        print(f"  [{subject_name}] No test files.")
-        return {}
 
     summary_files = [f for f in os.listdir(subject_raw_dir) if f.endswith('-summary.txt')]
     seizure_map = parse_summary(os.path.join(subject_raw_dir, summary_files[0]))
+
+    _, _, test_files = _seizure_aware_split(
+        edf_files, seizure_map, cfg.train_ratio, cfg.val_ratio
+    )
+    if not test_files:
+        print(f"  [{subject_name}] No test files.")
+        return {}
 
     stride_sec = cfg.infer_stride / cfg.fs
 

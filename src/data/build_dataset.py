@@ -8,6 +8,58 @@ from .preprocessing import filter_all_channels, sliding_window
 from ..utils.config import Config
 
 
+def _seizure_aware_split(
+    edf_files: List[str],
+    seizure_map: dict,
+    train_ratio: float,
+    val_ratio: float,
+):
+    """按发作事件顺序分配文件，保证 val/test 含癫痫事件。
+
+    1. 含发作文件按比例分到 train/val/test（保时间序）。
+    2. 非发作文件按时间位置填充到相邻子集。
+    3. 各子集内部重新排序，保持时间先后。
+    """
+    sz_files     = [f for f in edf_files if seizure_map.get(f)]
+    non_sz_files = [f for f in edf_files if not seizure_map.get(f)]
+    n_sz = len(sz_files)
+
+    if n_sz == 0:
+        n = len(edf_files)
+        n_tr = max(1, int(n * train_ratio))
+        n_v  = max(1, int(n * val_ratio))
+        return edf_files[:n_tr], edf_files[n_tr:n_tr + n_v], edf_files[n_tr + n_v:]
+
+    n_sz_train = max(1, round(n_sz * train_ratio))
+    if n_sz >= 2:
+        n_sz_val = max(1, min(round(n_sz * val_ratio), n_sz - n_sz_train))
+    else:
+        n_sz_val = 0
+    # n_sz_test = n_sz - n_sz_train - n_sz_val (implicit)
+
+    sz_train = sz_files[:n_sz_train]
+    sz_val   = sz_files[n_sz_train:n_sz_train + n_sz_val]
+    sz_test  = sz_files[n_sz_train + n_sz_val:]
+
+    train_boundary = sz_train[-1]
+    val_boundary   = sz_val[-1] if sz_val else train_boundary
+
+    non_tr, non_v, non_te = [], [], []
+    for f in non_sz_files:
+        if f < train_boundary:
+            non_tr.append(f)
+        elif f < val_boundary:
+            non_v.append(f)
+        else:
+            non_te.append(f)
+
+    return (
+        sorted(sz_train + non_tr),
+        sorted(sz_val   + non_v),
+        sorted(sz_test  + non_te),
+    )
+
+
 def _load_split(subject_dir: str, subject_name: str,
                 file_list: List[str], seizure_map: dict,
                 cfg: Config) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
@@ -57,12 +109,9 @@ def process_subject_to_memory(subject_dir: str, cfg: Config):
         print(f"  [{subject_name}] No EDF files, skipping.")
         return None
 
-    n = len(edf_files)
-    n_train = max(1, int(n * cfg.train_ratio))
-    n_val = max(1, int(n * cfg.val_ratio))
-    train_files = edf_files[:n_train]
-    val_files = edf_files[n_train:n_train + n_val]
-    test_files = edf_files[n_train + n_val:]
+    train_files, val_files, test_files = _seizure_aware_split(
+        edf_files, seizure_map, cfg.train_ratio, cfg.val_ratio
+    )
 
     train_X, train_y = _load_split(subject_dir, subject_name, train_files, seizure_map, cfg)
     if train_X is None:
@@ -108,12 +157,9 @@ def process_subject(subject_dir: str, out_dir: str, cfg: Config) -> bool:
         print(f"  [{subject_name}] No EDF files, skipping.")
         return False
 
-    n = len(edf_files)
-    n_train = max(1, int(n * cfg.train_ratio))
-    n_val = max(1, int(n * cfg.val_ratio))
-    train_files = edf_files[:n_train]
-    val_files = edf_files[n_train:n_train + n_val]
-    test_files = edf_files[n_train + n_val:]
+    train_files, val_files, test_files = _seizure_aware_split(
+        edf_files, seizure_map, cfg.train_ratio, cfg.val_ratio
+    )
 
     os.makedirs(out_dir, exist_ok=True)
 
