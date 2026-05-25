@@ -1,7 +1,7 @@
 import os
 import numpy as np
 import torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
 
 
 class EEGDataset(Dataset):
@@ -27,10 +27,14 @@ def _make_loaders(train_X, train_y, val_X, val_y, batch_size, num_workers):
     train_ds = EEGDataset(train_X, train_y)
     val_ds = EEGDataset(val_X, val_y)
 
+    counts = np.bincount(train_y, minlength=2)
+    weights = 1.0 / (counts[train_y] + 1e-8)
+    sampler = WeightedRandomSampler(weights, num_samples=len(weights), replacement=True)
+
     train_loader = DataLoader(
         train_ds,
         batch_size=batch_size,
-        shuffle=True,
+        sampler=sampler,
         num_workers=num_workers,
         pin_memory=True,
         drop_last=True,
