@@ -202,20 +202,20 @@ def evaluate_subject(subject_name: str, cfg: Config, experiments_dir: str = 'exp
     event_metrics = _compute_event_metrics(detected_events, gt_events_sec, test_duration_sec)
 
     # ── Per-subject print ──────────────────────────────────────────────────
-    sep = '=' * 60
     print(f"\n{sep}")
     print(f"Subject : {subject_name}  |  test files : {len(test_files)}")
     print(f"Segment  | Sens={segment_metrics['sensitivity']:.4f}  "
           f"Spec={segment_metrics['specificity']:.4f}  "
           f"Acc={segment_metrics['accuracy']:.4f}")
+    lat_str = f"{event_metrics['latency_s']:.2f}s" if not np.isnan(event_metrics['latency_s']) else "N/A"
+    detsens_val = event_metrics['true_detection_sensitivity']
+    detsens_str = f"{detsens_val:.4f}" if not np.isnan(detsens_val) else "N/A"
     print(f"Event    | Dur={event_metrics['duration_test_h']:.2f}h  "
           f"nTest={event_metrics['number_of_testing']}  "
           f"nSz={event_metrics['seizures_number']}  "
-          f"DetSens={event_metrics['true_detection_sensitivity']:.4f}  "
+          f"DetSens={detsens_str}  "
           f"FDR={event_metrics['FDR_per_h']:.2f}/h  "
-          f"Lat={event_metrics['latency_s']:.2f}s"
-          if not np.isnan(event_metrics['latency_s'])
-          else f"Lat=N/A")
+          f"Lat={lat_str}")
     print(sep)
 
     return {'segment': segment_metrics, 'event': event_metrics}

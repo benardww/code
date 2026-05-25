@@ -30,12 +30,19 @@ def _seizure_aware_split(
         n_v  = max(1, int(n * val_ratio))
         return edf_files[:n_tr], edf_files[n_tr:n_tr + n_v], edf_files[n_tr + n_v:]
 
-    n_sz_train = max(1, round(n_sz * train_ratio))
-    if n_sz >= 2:
-        n_sz_val = max(1, min(round(n_sz * val_ratio), n_sz - n_sz_train))
-    else:
-        n_sz_val = 0
-    # n_sz_test = n_sz - n_sz_train - n_sz_val (implicit)
+    if n_sz >= 3:
+        remaining = n_sz - 3
+        extra_train = round(remaining * train_ratio)
+        extra_val   = round(remaining * val_ratio)
+        n_sz_train = 1 + extra_train
+        n_sz_val   = 1 + extra_val
+        # n_sz_test  = n_sz - n_sz_train - n_sz_val (>= 1)
+    elif n_sz == 2:
+        n_sz_train, n_sz_val = 1, 1
+        print(f"  [WARNING] Only 2 seizure files: test split has no seizure files.")
+    else:  # n_sz == 1
+        n_sz_train, n_sz_val = 1, 0
+        print(f"  [WARNING] Only 1 seizure file: val/test splits have no seizure files.")
 
     sz_train = sz_files[:n_sz_train]
     sz_val   = sz_files[n_sz_train:n_sz_train + n_sz_val]
@@ -94,7 +101,7 @@ def process_subject_to_memory(subject_dir: str, cfg: Config):
     预处理一个受试者的所有 EDF 文件，返回内存中的数组，不写入磁盘。
 
     Returns:
-        (train_X, train_y, val_X, val_y, focal_alpha) 或 None（失败时）
+        (train_X, train_y, val_X, val_y) 或 None（失败时）
     """
     subject_name = os.path.basename(subject_dir)
 
@@ -128,14 +135,11 @@ def process_subject_to_memory(subject_dir: str, cfg: Config):
 
     n_sz = int((train_y == 1).sum())
     n_no = int((train_y == 0).sum())
-    n_total = n_sz + n_no
-    focal_alpha = round(1.0 - n_sz / n_total, 4) if n_total > 0 else 0.9
 
     print(f"  [{subject_name}] train: {len(train_X)} windows  (seizure={n_sz}, normal={n_no})")
-    print(f"  [{subject_name}] val:   {len(val_X)} windows")
-    print(f"  [{subject_name}] focal_alpha = {focal_alpha:.4f}  |  test files = {len(test_files)}")
+    print(f"  [{subject_name}] val:   {len(val_X)} windows  |  test files = {len(test_files)}")
 
-    return train_X, train_y, val_X, val_y, focal_alpha
+    return train_X, train_y, val_X, val_y
 
 
 def process_subject(subject_dir: str, out_dir: str, cfg: Config) -> bool:

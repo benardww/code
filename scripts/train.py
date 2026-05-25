@@ -37,8 +37,7 @@ def train_subject(subject_name: str, cfg: Config, experiments_dir: str = 'experi
     if result is None:
         raise ValueError(f"[{subject_name}] 无法处理原始数据，跳过训练。")
 
-    train_X, train_y, val_X, val_y, focal_alpha = result
-    cfg.focal_alpha = focal_alpha
+    train_X, train_y, val_X, val_y = result
 
     save_dir = os.path.join(experiments_dir, subject_name)
     print(f"\nTraining on subject: {subject_name}  |  device: {cfg.device}")

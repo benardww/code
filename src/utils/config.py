@@ -46,7 +46,7 @@ class Config:
     epochs: int = 100
     lr: float = 1e-3
     weight_decay: float = 1e-4
-    focal_alpha: float = 0.9
+    focal_alpha: float = 0.75
     focal_gamma: float = 2.0
     grad_clip: float = 5.0
     early_stop_patience: int = 15
