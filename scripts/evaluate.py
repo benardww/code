@@ -113,7 +113,13 @@ def evaluate_subject(subject_name: str, cfg: Config, experiments_dir: str = 'exp
     device = torch.device(cfg.device if torch.cuda.is_available() else 'cpu')
 
     model = SeizureDetector(cfg)
-    model.load_state_dict(torch.load(ckpt_path, map_location=device))
+    ckpt = torch.load(ckpt_path, map_location=device)
+    if isinstance(ckpt, dict) and 'state_dict' in ckpt:
+        model.load_state_dict(ckpt['state_dict'])
+        threshold = ckpt.get('best_threshold', cfg.threshold)
+    else:
+        model.load_state_dict(ckpt)
+        threshold = cfg.threshold
     model.to(device)
     model.eval()
 
@@ -165,7 +171,7 @@ def evaluate_subject(subject_name: str, cfg: Config, experiments_dir: str = 'exp
         all_probs_raw.extend(probs.tolist())
         all_gt_raw.extend(gt.tolist())
 
-        final = postprocess(probs, cfg.maf_window, cfg.threshold, cfg.collar_sec, stride_sec)
+        final = postprocess(probs, cfg.maf_window, threshold, cfg.collar_sec, stride_sec)
         all_final.extend(final.tolist())
         all_gt_post.extend(gt.tolist())
 
@@ -202,8 +208,9 @@ def evaluate_subject(subject_name: str, cfg: Config, experiments_dir: str = 'exp
     event_metrics = _compute_event_metrics(detected_events, gt_events_sec, test_duration_sec)
 
     # ── Per-subject print ──────────────────────────────────────────────────
+    sep = '=' * 60
     print(f"\n{sep}")
-    print(f"Subject : {subject_name}  |  test files : {len(test_files)}")
+    print(f"Subject : {subject_name}  |  test files : {len(test_files)}  |  threshold : {threshold:.4f}")
     print(f"Segment  | Sens={segment_metrics['sensitivity']:.4f}  "
           f"Spec={segment_metrics['specificity']:.4f}  "
           f"Acc={segment_metrics['accuracy']:.4f}")

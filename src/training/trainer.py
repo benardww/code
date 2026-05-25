@@ -4,6 +4,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.amp import autocast, GradScaler
+from sklearn.metrics import roc_curve
 
 from .metrics import compute_metrics
 
@@ -83,13 +84,27 @@ class Trainer:
             probs = torch.softmax(logits, dim=-1)[:, 1].cpu().numpy()
             all_probs.extend(probs)
             all_labels.extend(y.cpu().numpy())
-        metrics = compute_metrics(np.array(all_probs), np.array(all_labels))
+        probs_arr = np.array(all_probs)
+        labels_arr = np.array(all_labels)
+        metrics = compute_metrics(probs_arr, labels_arr)
         metrics['loss'] = total_loss / max(len(loader), 1)
+
+        # Youden-J 最优阈值搜索
+        best_threshold = 0.5
+        try:
+            fpr, tpr, thresholds = roc_curve(labels_arr, probs_arr)
+            youden = tpr - fpr
+            best_threshold = float(thresholds[np.argmax(youden)])
+        except Exception:
+            pass
+        metrics['best_threshold'] = best_threshold
+
         return metrics
 
     def fit(self, train_loader, val_loader) -> str:
         best_score = -np.inf
         best_auc = float('nan')
+        best_threshold = 0.5
         best_ckpt = os.path.join(self.save_dir, 'best_model.pth')
 
         for epoch in range(1, self.cfg.epochs + 1):
@@ -114,12 +129,19 @@ class Trainer:
             if monitor > best_score:
                 best_score = monitor
                 best_auc = auc
-                torch.save(self.model.state_dict(), best_ckpt)
+                best_threshold = val_metrics.get('best_threshold', 0.5)
+                torch.save({
+                    'state_dict': self.model.state_dict(),
+                    'best_threshold': best_threshold,
+                }, best_ckpt)
 
             if self.early_stopper.step(monitor):
-                print(f"Early stopping at epoch {epoch} (best val_auc={best_auc:.4f})")
+                print(f"Early stopping at epoch {epoch} (best val_auc={best_auc:.4f}, threshold={best_threshold:.4f})")
                 break
 
-        print(f"Training complete. Best val_auc={best_auc:.4f}" if not np.isnan(best_auc)
-              else "Training complete. Best val_auc=n/a (val 集无癫痫样本，以 val_loss 替代监控)")
+        print(
+            f"Training complete. Best val_auc={best_auc:.4f}  threshold={best_threshold:.4f}"
+            if not np.isnan(best_auc)
+            else f"Training complete. Best val_auc=n/a  threshold={best_threshold:.4f}"
+        )
         return best_ckpt
